@@ -13,6 +13,7 @@ Setup:
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,17 @@ CLAUDE_TIMEOUT = 180    # seconds per request
 # ─────────────────────────────────────────────────────────────────────────────
 
 history: dict[str, list[dict]] = {}
+
+def find_claude() -> str:
+    """Find the claude CLI, checking common install locations on Windows."""
+    found = shutil.which("claude")
+    if found:
+        return found
+    # npm global bin on Windows
+    npm_path = Path(os.environ.get("APPDATA", "")) / "npm" / "claude.cmd"
+    if npm_path.exists():
+        return str(npm_path)
+    return "claude"  # fallback, let it fail with a clear error
 
 def load_history():
     global history
@@ -60,7 +72,7 @@ async def run_claude(prompt: str, cwd: Path) -> str:
     loop = asyncio.get_event_loop()
     def _run():
         return subprocess.run(
-            ["claude", "-p", prompt, "--output-format", "text"],
+            [find_claude(), "-p", prompt, "--output-format", "text"],
             capture_output=True,
             text=True,
             timeout=CLAUDE_TIMEOUT,
