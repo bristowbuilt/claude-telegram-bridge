@@ -61,31 +61,33 @@ def save_sessions():
     SESSIONS_FILE.write_text(json.dumps(sessions, indent=2))
 
 def load_memory(cwd: Path) -> str:
-    """Load memory files relevant to the current working directory."""
+    """Load memory files listed in the ## Memory section of CLAUDE.md in cwd."""
     base = Path.home() / ".dotfiles" / "claude" / "memory"
     if not base.exists():
         return ""
 
-    # Always load global context
-    files = [
-        base / "global" / "george.md",
-        base / "global" / "reminders.md",
-    ]
+    claude_md = cwd / "CLAUDE.md"
+    if not claude_md.exists():
+        return ""
 
-    # Load project-specific memory based on cwd
-    cwd_str = str(cwd).lower()
-    if "trainheroic" in cwd_str:
-        files += [
-            base / "trainheroic" / "clients.md",
-            base / "trainheroic" / "exercise-ids.md",
-        ]
-    elif "triathlon" in cwd_str:
-        files += [
-            base / "triathlon" / "system.md",
-            base / "triathlon" / "athlete-profile.md",
-        ]
+    # Parse ## Memory section for file paths like `- \`path/to/file.md\``
+    in_memory = False
+    rel_paths = []
+    for line in claude_md.read_text(encoding="utf-8").splitlines():
+        if line.strip().startswith("## Memory"):
+            in_memory = True
+            continue
+        if in_memory:
+            if line.startswith("##"):
+                break
+            # Match lines like: - `global/george.md`
+            stripped = line.strip()
+            if stripped.startswith("-"):
+                path = stripped.lstrip("- ").strip().strip("`")
+                if path.endswith(".md"):
+                    rel_paths.append(path)
 
-    chunks = [f.read_text(encoding="utf-8") for f in files if f.exists()]
+    chunks = [(base / p).read_text(encoding="utf-8") for p in rel_paths if (base / p).exists()]
     return "\n\n---\n\n".join(chunks).strip()
 
 def is_allowed(user_id: int) -> bool:
